@@ -70,6 +70,7 @@ Usage: iostress [-hV] [--corpus=<corpus>] --duration=<duration>
 | `--corpus` | No | Synthetic corpus: `directory:fileCount` — creates files before test, deletes after |
 | `--file-size-min` | No | Minimum synthetic file size (default: `1KiB`) |
 | `--file-size-max` | No | Maximum synthetic file size (default: `1GiB`) |
+| `--canary` | No | Drop an EICAR test file into each worker directory and verify it is intact after the test. Exits with code `1` if any canary is missing or altered. |
 
 ### Worker Types
 
@@ -130,6 +131,33 @@ java -jar io-stress-test-1.0.0.jar ^
   --worker=listing:5:\\fileserver\evidence\corpus ^
   --worker=write:10:\\fileserver\output
 ```
+
+### Detecting antivirus interference with `--canary`
+
+Add `--canary` to any run to drop an [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) into each worker directory before the test. After the test completes the tool checks each file is byte-for-byte intact. If AV software on the server quarantines or replaces a file during the run, the summary will show what was found and the process exits with code `1`:
+
+```bat
+java -jar io-stress-test-1.0.0.jar ^
+  --duration=2h ^
+  --canary ^
+  --corpus=\\fileserver\evidence\corpus:500 ^
+  --worker=read:10:\\fileserver\evidence\corpus ^
+  --worker=write:10:\\fileserver\output
+```
+
+Example output when AV interferes:
+
+```
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ CANARY (EICAR)                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│  ✓  \\fileserver\evidence\corpus   OK                                            │
+│  ✗  \\fileserver\output            ALTERED                                       │
+│       found: "This file has been quarantined by antivirus software."             │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+The EICAR file is deleted during cleanup regardless of the result. The tool uses the standard [EICAR test string](https://www.eicar.org/download-anti-malware-testfile/) — it is harmless and universally recognised by AV products as a safe test marker.
 
 ### Light local sanity check
 
@@ -217,6 +245,7 @@ After cleanup, a results table shows latency percentiles for each operation type
 - **Use two separate share paths** for reads and writes to simulate a real e-discovery topology (evidence share → output share)
 - **Run multiple instances** of the tool simultaneously from different clients to simulate concurrent users
 - **Watch p95/p99 latency** — a large gap between p50 and p99 often indicates intermittent server resource exhaustion before errors start appearing
+- **Use `--canary`** to rule out AV interference early — silent quarantining can cause write errors and latency spikes that look like network or storage problems
 
 ## License
 
