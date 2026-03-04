@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.iostresstest'
-version = '1.0.0'
+version = findProperty('releaseVersion') ?: '0.0.0-dev'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11
