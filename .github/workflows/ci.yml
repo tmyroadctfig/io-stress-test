@@ -28,6 +28,9 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
+      - name: Test
+        run: ./gradlew test --no-daemon
+
       - name: Build
         run: ./gradlew shadowJar --no-daemon
 
