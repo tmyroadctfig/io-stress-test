@@ -1,5 +1,7 @@
 package com.iostresstest.cli;
 
+import com.iostresstest.corpus.CanaryManager;
+import com.iostresstest.corpus.CanaryResult;
 import com.iostresstest.corpus.CorpusManager;
 import com.iostresstest.metrics.MetricsRegistry;
 import com.iostresstest.phase.CleanupPhase;
@@ -12,9 +14,14 @@ import org.fusesource.jansi.Ansi.Color;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 
 import static org.fusesource.jansi.Ansi.ansi;
@@ -66,6 +73,12 @@ public class StressTestCommand implements Callable<Integer> {
                           "(types: read, listing, write). Repeatable.")
     private List<WorkerSpec> workers;
 
+    @Option(names = "--canary",
+            description = "Drop an EICAR test file into each worker directory before the test " +
+                          "and verify it is intact afterwards. A missing or altered canary " +
+                          "indicates AV interference. Returns exit code 1 if any canary fails.")
+    private boolean canary;
+
     @Override
     public Integer call() {
         if (fileSizeMin > fileSizeMax) {
@@ -75,6 +88,7 @@ public class StressTestCommand implements Callable<Integer> {
         }
 
         CorpusManager corpusManager = new CorpusManager();
+        CanaryManager canaryManager = new CanaryManager();
         MetricsRegistry metrics     = new MetricsRegistry();
         AnsiDashboard dashboard     = new AnsiDashboard();
         List<PhaseResult> phases    = new ArrayList<>();
@@ -85,7 +99,22 @@ public class StressTestCommand implements Callable<Integer> {
                 (created, total) -> printProgress("Creating corpus", created, total));
         PhaseResult setupResult = setup.run();
         phases.add(setupResult);
-        printPhaseResult(setupResult);
+
+        if (canary) {
+            Set<Path> canaryDirs = uniqueWorkerDirs();
+            try {
+                canaryManager.drop(new ArrayList<>(canaryDirs));
+                System.out.println(ansi().fg(Color.CYAN)
+                        .a("  Canary dropped in " + canaryDirs.size() + " director"
+                           + (canaryDirs.size() == 1 ? "y" : "ies")).reset());
+            } catch (IOException e) {
+                System.out.println(ansi().fg(Color.RED)
+                        .a("  Warning: failed to drop canary — " + e.getMessage()).reset());
+            }
+            System.out.println();
+        } else {
+            printPhaseResult(setupResult);
+        }
 
         // ── Test ─────────────────────────────────────────────────────────────
         printPhaseHeader("TEST");
@@ -94,8 +123,15 @@ public class StressTestCommand implements Callable<Integer> {
         PhaseResult testResult = test.run();
         phases.add(testResult);
 
+        // ── Canary verification ───────────────────────────────────────────────
+        List<CanaryResult> canaryResults = Collections.emptyList();
+        if (canary && canaryManager.hasCanaries()) {
+            canaryResults = canaryManager.verify();
+        }
+
         // ── Cleanup ──────────────────────────────────────────────────────────
         printPhaseHeader("CLEANUP");
+        canaryManager.cleanup();
         CleanupPhase cleanup = new CleanupPhase(corpusManager,
                 (deleted, total) -> printProgress("Deleting files", (int) deleted, (int) total));
         PhaseResult cleanupResult = cleanup.run();
@@ -103,9 +139,18 @@ public class StressTestCommand implements Callable<Integer> {
         printPhaseResult(cleanupResult);
 
         // ── Summary ──────────────────────────────────────────────────────────
-        new SummaryReporter().print(metrics, phases);
+        new SummaryReporter().print(metrics, phases, canaryResults);
 
-        return 0;
+        boolean canaryFailed = canaryResults.stream().anyMatch(r -> !r.isOk());
+        return canaryFailed ? 1 : 0;
+    }
+
+    private Set<Path> uniqueWorkerDirs() {
+        Set<Path> dirs = new LinkedHashSet<>();
+        for (WorkerSpec w : workers) {
+            dirs.add(w.getDirectory());
+        }
+        return dirs;
     }
 
     private static void printPhaseHeader(String name) {
@@ -127,7 +172,6 @@ public class StressTestCommand implements Callable<Integer> {
 
     private static void printProgress(String label, int current, int total) {
         int pct = total == 0 ? 100 : (int) ((current * 100L) / total);
-        // Overwrite the same line using \r
         System.out.printf("\r  %s: %d / %d  (%d%%)   ", label, current, total, pct);
         System.out.flush();
         if (current == total) System.out.println();

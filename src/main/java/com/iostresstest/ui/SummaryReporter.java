@@ -1,5 +1,6 @@
 package com.iostresstest.ui;
 
+import com.iostresstest.corpus.CanaryResult;
 import com.iostresstest.metrics.MetricsRegistry;
 import com.iostresstest.metrics.OperationType;
 import com.iostresstest.metrics.Snapshot;
@@ -20,7 +21,8 @@ public class SummaryReporter {
     private static final int WIDTH = 82;
     private static final String H = "─".repeat(WIDTH);
 
-    public void print(MetricsRegistry metrics, List<PhaseResult> phases) {
+    public void print(MetricsRegistry metrics, List<PhaseResult> phases,
+                      List<CanaryResult> canaryResults) {
         Snapshot snap = metrics.snapshot(System.nanoTime());
 
         System.out.println();
@@ -71,6 +73,37 @@ public class SummaryReporter {
                         "↳",
                         ansi().fg(Color.RED).a(String.valueOf(ts.errorCount)).reset());
                 printRow(errLine, WIDTH);
+            }
+        }
+
+        // Canary results (only printed when --canary was used)
+        if (!canaryResults.isEmpty()) {
+            System.out.println(ansi().bold().fg(Color.CYAN).a("├" + H + "┤").reset());
+            printRow(bold(" CANARY (EICAR)"), WIDTH);
+            System.out.println(ansi().bold().fg(Color.CYAN).a("├" + H + "┤").reset());
+            for (CanaryResult cr : canaryResults) {
+                String dirStr = " " + cr.getFile().getParent().toString();
+                switch (cr.getStatus()) {
+                    case OK:
+                        printRow(ansi().fg(Color.GREEN).a("  ✓ ").reset() + dirStr + "  "
+                                + ansi().fg(Color.GREEN).a("OK").reset(), WIDTH);
+                        break;
+                    case MISSING:
+                        printRow(ansi().fg(Color.RED).a("  ✗ ").reset() + dirStr + "  "
+                                + ansi().fg(Color.RED).a("MISSING")
+                                .a(cr.getDetail() != null ? " — " + cr.getDetail() : "").reset(),
+                                WIDTH);
+                        break;
+                    case ALTERED:
+                        printRow(ansi().fg(Color.RED).a("  ✗ ").reset() + dirStr + "  "
+                                + ansi().fg(Color.RED).a("ALTERED").reset(), WIDTH);
+                        // Show the first 60 chars of what was found, on a second line
+                        String observed = cr.getDetail() != null ? cr.getDetail() : "";
+                        if (observed.length() > 60) observed = observed.substring(0, 60) + "…";
+                        printRow("      " + ansi().fgBrightBlack()
+                                .a("found: \"" + observed + "\"").reset(), WIDTH);
+                        break;
+                }
             }
         }
 
