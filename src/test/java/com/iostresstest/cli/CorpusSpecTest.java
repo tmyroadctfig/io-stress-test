@@ -3,6 +3,8 @@ package com.iostresstest.cli;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
+import java.nio.file.Paths;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class CorpusSpecTest {
@@ -12,7 +14,7 @@ class CorpusSpecTest {
     @Test
     void convert_unixPath() throws Exception {
         CorpusSpec spec = converter.convert("/mnt/share/corpus:500");
-        assertEquals("/mnt/share/corpus", spec.getDirectory().toString());
+        assertEquals(Paths.get("/mnt/share/corpus"), spec.getDirectory());
         assertEquals(500, spec.getFileCount());
     }
 

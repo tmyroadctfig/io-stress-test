@@ -2,6 +2,10 @@ package com.iostresstest.metrics;
 
 import org.HdrHistogram.Histogram;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -18,6 +22,7 @@ public class OperationMetrics {
     private final LongAdder byteCount  = new LongAdder();
     private final LongAdder errorCount = new LongAdder();
     private final Histogram histogram  = new Histogram(MAX_LATENCY_MICROS, 3);
+    private final ConcurrentHashMap<String, LongAdder> errorDetails = new ConcurrentHashMap<>();
 
     public void record(long durationNanos, long bytes) {
         opCount.increment();
@@ -30,6 +35,30 @@ public class OperationMetrics {
 
     public void recordError() {
         errorCount.increment();
+    }
+
+    public void recordError(Exception e) {
+        errorCount.increment();
+        errorDetails.computeIfAbsent(normalizeKey(e), k -> new LongAdder()).increment();
+    }
+
+    /** Groups by class name + the leading word/phrase up to the first non-letter, non-space char. */
+    private static String normalizeKey(Exception e) {
+        String cls = e.getClass().getSimpleName();
+        String msg = e.getMessage();
+        if (msg == null || msg.isEmpty()) return cls;
+        int end = 0;
+        while (end < msg.length() && (Character.isLetter(msg.charAt(end)) || msg.charAt(end) == ' ')) {
+            end++;
+        }
+        String prefix = msg.substring(0, end).stripTrailing();
+        return prefix.isEmpty() ? cls : cls + ": " + prefix;
+    }
+
+    public Map<String, Long> getErrorDetails() {
+        Map<String, Long> result = new HashMap<>();
+        errorDetails.forEach((k, v) -> result.put(k, v.sum()));
+        return Collections.unmodifiableMap(result);
     }
 
     public long getOpCount()    { return opCount.sum(); }

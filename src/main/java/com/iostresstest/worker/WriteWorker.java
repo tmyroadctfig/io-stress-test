@@ -56,7 +56,7 @@ public class WriteWorker implements Runnable {
                 corpusManager.registerWrittenFile(file);
                 metrics.record(OperationType.FILE_WRITE, System.nanoTime() - start, fileSize);
             } catch (IOException e) {
-                metrics.recordError(OperationType.FILE_WRITE);
+                metrics.recordError(OperationType.FILE_WRITE, e);
             }
         }
     }

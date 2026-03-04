@@ -2,6 +2,8 @@ package com.iostresstest.metrics;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Immutable point-in-time snapshot of all metrics, used by the UI for display and rate calculation.
@@ -29,18 +31,22 @@ public class Snapshot {
         public final long p99Micros;
         public final long meanMicros;
         public final long maxMicros;
+        /** Counts per normalized exception key (class + message prefix). Sorted for stable display. */
+        public final SortedMap<String, Long> errorDetails;
 
         public TypeSnapshot(long opCount, long byteCount, long errorCount,
                             long p50Micros, long p95Micros, long p99Micros,
-                            long meanMicros, long maxMicros) {
-            this.opCount    = opCount;
-            this.byteCount  = byteCount;
-            this.errorCount = errorCount;
-            this.p50Micros  = p50Micros;
-            this.p95Micros  = p95Micros;
-            this.p99Micros  = p99Micros;
-            this.meanMicros = meanMicros;
-            this.maxMicros  = maxMicros;
+                            long meanMicros, long maxMicros,
+                            Map<String, Long> errorDetails) {
+            this.opCount      = opCount;
+            this.byteCount    = byteCount;
+            this.errorCount   = errorCount;
+            this.p50Micros    = p50Micros;
+            this.p95Micros    = p95Micros;
+            this.p99Micros    = p99Micros;
+            this.meanMicros   = meanMicros;
+            this.maxMicros    = maxMicros;
+            this.errorDetails = Collections.unmodifiableSortedMap(new TreeMap<>(errorDetails));
         }
     }
 }

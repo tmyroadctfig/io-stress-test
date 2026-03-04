@@ -3,6 +3,8 @@ package com.iostresstest.cli;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
+import java.nio.file.Paths;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class WorkerSpecTest {
@@ -14,7 +16,7 @@ class WorkerSpecTest {
         WorkerSpec spec = converter.convert("read:10:/mnt/evidence");
         assertEquals(WorkerSpec.Type.READ, spec.getType());
         assertEquals(10, spec.getThreads());
-        assertEquals("/mnt/evidence", spec.getDirectory().toString());
+        assertEquals(Paths.get("/mnt/evidence"), spec.getDirectory());
     }
 
     @Test
@@ -22,7 +24,7 @@ class WorkerSpecTest {
         WorkerSpec spec = converter.convert("listing:4:/mnt/data");
         assertEquals(WorkerSpec.Type.LISTING, spec.getType());
         assertEquals(4, spec.getThreads());
-        assertEquals("/mnt/data", spec.getDirectory().toString());
+        assertEquals(Paths.get("/mnt/data"), spec.getDirectory());
     }
 
     @Test
@@ -30,7 +32,7 @@ class WorkerSpecTest {
         WorkerSpec spec = converter.convert("write:8:/mnt/output");
         assertEquals(WorkerSpec.Type.WRITE, spec.getType());
         assertEquals(8, spec.getThreads());
-        assertEquals("/mnt/output", spec.getDirectory().toString());
+        assertEquals(Paths.get("/mnt/output"), spec.getDirectory());
     }
 
     @Test
@@ -80,6 +82,6 @@ class WorkerSpecTest {
     @Test
     void toString_producesExpectedFormat() throws Exception {
         WorkerSpec spec = converter.convert("write:4:/tmp/output");
-        assertEquals("write:4:/tmp/output", spec.toString());
+        assertEquals("write:4:" + Paths.get("/tmp/output"), spec.toString());
     }
 }

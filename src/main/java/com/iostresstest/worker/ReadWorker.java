@@ -69,7 +69,7 @@ public class ReadWorker implements Runnable {
             }
             metrics.record(OperationType.SEQ_READ, System.nanoTime() - start, bytesRead);
         } catch (IOException e) {
-            metrics.recordError(OperationType.SEQ_READ);
+            metrics.recordError(OperationType.SEQ_READ, e);
         }
     }
 
@@ -87,7 +87,7 @@ public class ReadWorker implements Runnable {
                 metrics.record(OperationType.RAND_READ, System.nanoTime() - start, bytesRead);
             }
         } catch (IOException e) {
-            metrics.recordError(OperationType.RAND_READ);
+            metrics.recordError(OperationType.RAND_READ, e);
         }
     }
 
