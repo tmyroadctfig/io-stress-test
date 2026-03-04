@@ -10,6 +10,7 @@ A Java command-line tool for stress-testing disk and network file systems under 
 
 Download the latest `io-stress-test-*.jar` from [Releases](../../releases), then run:
 
+**Linux / macOS**
 ```bash
 java -jar io-stress-test-1.0.0.jar \
   --duration=30m \
@@ -19,6 +20,30 @@ java -jar io-stress-test-1.0.0.jar \
   --worker=read:10:/mnt/share/corpus \
   --worker=listing:5:/mnt/share/corpus \
   --worker=write:10:/mnt/share/output
+```
+
+**Windows (cmd)**
+```bat
+java -jar io-stress-test-1.0.0.jar ^
+  --duration=30m ^
+  --file-size-min=1KiB ^
+  --file-size-max=256MiB ^
+  --corpus=C:\work\corpus:200 ^
+  --worker=read:10:C:\work\corpus ^
+  --worker=listing:5:C:\work\corpus ^
+  --worker=write:10:C:\work\output
+```
+
+**Windows against a network share (UNC path)**
+```bat
+java -jar io-stress-test-1.0.0.jar ^
+  --duration=2h ^
+  --file-size-min=1KiB ^
+  --file-size-max=1GiB ^
+  --corpus=\\server\evidence\corpus:500 ^
+  --worker=read:10:\\server\evidence\corpus ^
+  --worker=listing:5:\\server\evidence\corpus ^
+  --worker=write:10:\\server\output
 ```
 
 ## Building from Source
@@ -91,8 +116,24 @@ java -jar io-stress-test-1.0.0.jar \
   --worker=write:10:/mnt/share/output
 ```
 
+### Windows Server SMB share (the primary use case)
+
+Test an SMB share with a synthetic corpus, simulating concurrent evidence reads and extractions:
+
+```bat
+java -jar io-stress-test-1.0.0.jar ^
+  --duration=2h ^
+  --file-size-min=1KiB ^
+  --file-size-max=1GiB ^
+  --corpus=\\fileserver\evidence\corpus:500 ^
+  --worker=read:10:\\fileserver\evidence\corpus ^
+  --worker=listing:5:\\fileserver\evidence\corpus ^
+  --worker=write:10:\\fileserver\output
+```
+
 ### Light local sanity check
 
+**Linux / macOS**
 ```bash
 java -jar io-stress-test-1.0.0.jar \
   --duration=30s \
@@ -102,6 +143,18 @@ java -jar io-stress-test-1.0.0.jar \
   --worker=read:4:/tmp/corpus \
   --worker=listing:2:/tmp/corpus \
   --worker=write:4:/tmp/output
+```
+
+**Windows**
+```bat
+java -jar io-stress-test-1.0.0.jar ^
+  --duration=30s ^
+  --file-size-min=4KiB ^
+  --file-size-max=1MiB ^
+  --corpus=C:\Temp\corpus:50 ^
+  --worker=read:4:C:\Temp\corpus ^
+  --worker=listing:2:C:\Temp\corpus ^
+  --worker=write:4:C:\Temp\output
 ```
 
 ## Understanding the Output

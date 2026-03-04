@@ -25,16 +25,17 @@ public class CorpusSpec {
     public static class Converter implements CommandLine.ITypeConverter<CorpusSpec> {
         @Override
         public CorpusSpec convert(String value) throws Exception {
-            String[] parts = value.split(":", 2);
-            if (parts.length != 2) {
+            // Split on the last ':' so Windows drive letters (e.g. C:\path) are preserved
+            int lastColon = value.lastIndexOf(':');
+            if (lastColon < 0) {
                 throw new CommandLine.TypeConversionException(
                         "Invalid corpus spec '" + value + "'. Format: directory:fileCount  " +
-                        "(e.g. /tmp/corpus:500)");
+                        "(e.g. /tmp/corpus:500 or C:\\corpus:500)");
             }
-            Path directory = Paths.get(parts[0].trim());
+            Path directory = Paths.get(value.substring(0, lastColon).trim());
             int fileCount;
             try {
-                fileCount = Integer.parseInt(parts[1].trim());
+                fileCount = Integer.parseInt(value.substring(lastColon + 1).trim());
                 if (fileCount < 1) throw new NumberFormatException();
             } catch (NumberFormatException e) {
                 throw new CommandLine.TypeConversionException(
