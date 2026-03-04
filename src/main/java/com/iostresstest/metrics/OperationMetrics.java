@@ -23,6 +23,8 @@ public class OperationMetrics {
     private final LongAdder errorCount = new LongAdder();
     private final Histogram histogram  = new Histogram(MAX_LATENCY_MICROS, 3);
     private final ConcurrentHashMap<String, LongAdder> errorDetails = new ConcurrentHashMap<>();
+    /** One representative full message per normalised key, captured on first occurrence. */
+    private final ConcurrentHashMap<String, String> errorSamples = new ConcurrentHashMap<>();
 
     public void record(long durationNanos, long bytes) {
         opCount.increment();
@@ -39,7 +41,10 @@ public class OperationMetrics {
 
     public void recordError(Exception e) {
         errorCount.increment();
-        errorDetails.computeIfAbsent(normalizeKey(e), k -> new LongAdder()).increment();
+        String key = normalizeKey(e);
+        errorDetails.computeIfAbsent(key, k -> new LongAdder()).increment();
+        errorSamples.putIfAbsent(key, e.getClass().getSimpleName()
+                + (e.getMessage() != null ? ": " + e.getMessage() : ""));
     }
 
     /** Groups by class name + the leading word/phrase up to the first non-letter, non-space char. */
@@ -59,6 +64,10 @@ public class OperationMetrics {
         Map<String, Long> result = new HashMap<>();
         errorDetails.forEach((k, v) -> result.put(k, v.sum()));
         return Collections.unmodifiableMap(result);
+    }
+
+    public Map<String, String> getErrorSamples() {
+        return Collections.unmodifiableMap(errorSamples);
     }
 
     public long getOpCount()    { return opCount.sum(); }

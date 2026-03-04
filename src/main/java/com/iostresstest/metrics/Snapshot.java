@@ -33,11 +33,14 @@ public class Snapshot {
         public final long maxMicros;
         /** Counts per normalized exception key (class + message prefix). Sorted for stable display. */
         public final SortedMap<String, Long> errorDetails;
+        /** One representative full message per normalized key. */
+        public final Map<String, String> errorSamples;
 
         public TypeSnapshot(long opCount, long byteCount, long errorCount,
                             long p50Micros, long p95Micros, long p99Micros,
                             long meanMicros, long maxMicros,
-                            Map<String, Long> errorDetails) {
+                            Map<String, Long> errorDetails,
+                            Map<String, String> errorSamples) {
             this.opCount      = opCount;
             this.byteCount    = byteCount;
             this.errorCount   = errorCount;
@@ -47,6 +50,7 @@ public class Snapshot {
             this.meanMicros   = meanMicros;
             this.maxMicros    = maxMicros;
             this.errorDetails = Collections.unmodifiableSortedMap(new TreeMap<>(errorDetails));
+            this.errorSamples = Collections.unmodifiableMap(errorSamples);
         }
     }
 }

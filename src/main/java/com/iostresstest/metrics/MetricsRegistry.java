@@ -45,7 +45,8 @@ public class MetricsRegistry {
                     m.getP99Micros(),
                     m.getMeanMicros(),
                     m.getMaxMicros(),
-                    m.getErrorDetails()
+                    m.getErrorDetails(),
+                    m.getErrorSamples()
             ));
         }
         return new Snapshot(nanoTime, data);

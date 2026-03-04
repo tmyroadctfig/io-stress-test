@@ -88,8 +88,9 @@ public class SummaryReporter {
                     printRow(errLine, WIDTH);
                 } else {
                     for (Map.Entry<String, Long> entry : ts.errorDetails.entrySet()) {
+                        String sample = ts.errorSamples.getOrDefault(entry.getKey(), entry.getKey());
                         String errLine = "   ↳  " + ansi().fg(Color.RED)
-                                .a(String.format("%,d", entry.getValue()) + "x  " + entry.getKey())
+                                .a(String.format("%,d", entry.getValue()) + "x  " + sample)
                                 .reset();
                         printRow(errLine, WIDTH);
                     }
