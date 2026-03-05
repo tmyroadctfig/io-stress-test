@@ -7,7 +7,9 @@ import com.iostresstest.metrics.Snapshot;
 import com.iostresstest.phase.PhaseResult;
 import org.fusesource.jansi.Ansi.Color;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.fusesource.jansi.Ansi.ansi;
 
@@ -16,9 +18,9 @@ import static org.fusesource.jansi.Ansi.ansi;
  */
 public class SummaryReporter {
 
-    // Column format: 1+20+1+8+1+11+1+9+1+9+1+9+1+9 = 82 visible chars
-    private static final String COL_FMT = " %-20s %8s %11s %9s %9s %9s %9s";
-    private static final int WIDTH = 82;
+    // Column format: 1+20+1+8+1+11+1+12+1+9+1+9+1+9 = 83 visible chars
+    private static final String COL_FMT = " %-20s %8s %11s %12s %9s %9s %9s";
+    private static final int WIDTH = 83;
     private static final String H = "─".repeat(WIDTH);
 
     public void print(MetricsRegistry metrics, List<PhaseResult> phases,
@@ -44,35 +46,55 @@ public class SummaryReporter {
             printRow(line, WIDTH);
         }
 
+        // Resolve test duration for rate calculation
+        Duration testDuration = phases.stream()
+                .filter(p -> "Test".equals(p.getName()))
+                .findFirst()
+                .map(PhaseResult::getElapsed)
+                .orElse(null);
+        double testSecs = (testDuration != null && testDuration.toMillis() > 0)
+                ? testDuration.toMillis() / 1000.0 : 0;
+
         // Metrics table
         System.out.println(ansi().bold().fg(Color.CYAN).a("├" + H + "┤").reset());
         printRow(bold(String.format(COL_FMT,
-                "OPERATION", "OPS", "BYTES", "AVG μs", "p50 μs", "p95 μs", "p99 μs")), WIDTH);
+                "OPERATION", "OPS", "BYTES", "RATE", "AVG μs", "p95 μs", "p99 μs")), WIDTH);
         System.out.println(ansi().bold().fg(Color.CYAN).a("├" + H + "┤").reset());
 
         for (OperationType type : OperationType.values()) {
             Snapshot.TypeSnapshot ts = snap.get(type);
             if (ts.opCount == 0 && ts.errorCount == 0) continue;
 
-            String bytesStr = ts.byteCount > 0
-                    ? formatBytes(ts.byteCount)
+            String bytesStr = ts.byteCount > 0 ? formatBytes(ts.byteCount) : "N/A";
+            String rateStr  = (type.hasThroughput() && testSecs > 0 && ts.byteCount > 0)
+                    ? formatBytes((long) (ts.byteCount / testSecs)) + "/s"
                     : "N/A";
 
             String line = String.format(COL_FMT,
                     type.getDisplayName(),
                     formatLong(ts.opCount),
                     bytesStr,
+                    rateStr,
                     formatLong(ts.meanMicros),
-                    formatLong(ts.p50Micros),
                     formatLong(ts.p95Micros),
                     formatLong(ts.p99Micros));
             printRow(line, WIDTH);
 
             if (ts.errorCount > 0) {
-                String errLine = String.format("  %-19s %s errors",
-                        "↳",
-                        ansi().fg(Color.RED).a(String.valueOf(ts.errorCount)).reset());
-                printRow(errLine, WIDTH);
+                if (ts.errorDetails.isEmpty()) {
+                    String errLine = String.format("  %-19s %s errors",
+                            "↳",
+                            ansi().fg(Color.RED).a(String.valueOf(ts.errorCount)).reset());
+                    printRow(errLine, WIDTH);
+                } else {
+                    for (Map.Entry<String, Long> entry : ts.errorDetails.entrySet()) {
+                        String sample = ts.errorSamples.getOrDefault(entry.getKey(), entry.getKey());
+                        String errLine = "   ↳  " + ansi().fg(Color.RED)
+                                .a(String.format("%,d", entry.getValue()) + "x  " + sample)
+                                .reset();
+                        printRow(errLine, WIDTH);
+                    }
+                }
             }
         }
 

@@ -61,6 +61,10 @@ public class WorkerGroup {
                     workers.add(new WriteWorker(spec.getDirectory(), fileSizeMin, fileSizeMax,
                             metrics, corpusManager, running));
                     break;
+                case READ_LISTING:
+                    workers.add(new ReadListingWorker(spec.getDirectory(), metrics,
+                            running, spec.getReadRatioPct()));
+                    break;
             }
         }
         return workers;

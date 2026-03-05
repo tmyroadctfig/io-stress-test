@@ -24,6 +24,10 @@ public class MetricsRegistry {
         metrics.get(type).recordError();
     }
 
+    public void recordError(OperationType type, Exception e) {
+        metrics.get(type).recordError(e);
+    }
+
     public OperationMetrics get(OperationType type) {
         return metrics.get(type);
     }
@@ -40,7 +44,9 @@ public class MetricsRegistry {
                     m.getP95Micros(),
                     m.getP99Micros(),
                     m.getMeanMicros(),
-                    m.getMaxMicros()
+                    m.getMaxMicros(),
+                    m.getErrorDetails(),
+                    m.getErrorSamples()
             ));
         }
         return new Snapshot(nanoTime, data);

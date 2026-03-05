@@ -51,7 +51,7 @@ public class ListingWorker implements Runnable {
             // Record entry count as "bytes" so throughput is meaningful as entries/s in the UI
             metrics.record(OperationType.DIR_LIST, System.nanoTime() - start, count);
         } catch (IOException e) {
-            metrics.recordError(OperationType.DIR_LIST);
+            metrics.recordError(OperationType.DIR_LIST, e);
         }
     }
 

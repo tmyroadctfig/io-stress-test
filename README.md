@@ -1,5 +1,7 @@
 # IO Stress Test
 
+[![CI](https://github.com/tmyroadctfig/io-stress-test/actions/workflows/ci.yml/badge.svg)](https://github.com/tmyroadctfig/io-stress-test/actions/workflows/ci.yml)
+
 A Java command-line tool for stress-testing disk and network file systems under e-discovery-style workloads. Designed to reproduce bottlenecks observed when evidence-processing software performs concurrent reads, folder listings, and binary writes against Windows Server SMB shares.
 
 ## Prerequisites
@@ -79,8 +81,9 @@ Usage: iostress [-hV] [--corpus=<corpus>] --duration=<duration>
 | `read` | 50% sequential full-file reads, 50% random-seek chunk reads |
 | `listing` | Recursive directory listings, picks random subdirectories each iteration |
 | `write` | Writes random-sized binary files in a UUID directory structure: `{dir}/abc/def/abcdef12-….bin` |
+| `read+list` | Interleaves reads and directory listings in each thread. Default 50/50 mix; override with `read+list[75]` for 75% reads / 25% listings (any value 0–100). |
 
-Worker output files (created by `write` workers) and corpus files (created by `--corpus`) are **always deleted** after the test. Existing files in directories pointed to by `read` and `listing` workers are **never modified**.
+Worker output files (created by `write` workers) and corpus files (created by `--corpus`) are **always deleted** after the test. Existing files in directories pointed to by `read`, `listing`, and `read+list` workers are **never modified**.
 
 ### Size Format
 
@@ -213,38 +216,53 @@ During the test, a live ANSI dashboard shows:
 
 ### Final Summary
 
-After cleanup, a results table shows latency percentiles for each operation type:
+After cleanup, a results table shows throughput and latency percentiles for each operation type:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                          IO STRESS TEST — RESULTS                                │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE         DURATION    STATUS                                                 │
-│ Setup         3.241s      OK                                                     │
-│ Test          1h 00m 03s  OK                                                     │
-│ Cleanup       12.544s     OK                                                     │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ OPERATION                 OPS       BYTES    AVG μs    p50 μs    p95 μs    p99 μs│
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ Sequential Read     1,234,567  456.78 GiB       234       198       512       890│
-│ Random Read        12,345,678  789.01 GiB        12         9        38        67│
-│ Dir Listing         2,345,678   3.45 MiB         43        31       120       245│
-│ Write                 123,456   45.67 GiB     1,234     1,012     2,890     3,456│
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                           IO STRESS TEST — RESULTS                                │
+├───────────────────────────────────────────────────────────────────────────────────┤
+│ PHASE         DURATION    STATUS                                                   │
+│ Setup         3.241s      OK                                                       │
+│ Test          1h 00m 03s  OK                                                       │
+│ Cleanup       12.544s     OK                                                       │
+├───────────────────────────────────────────────────────────────────────────────────┤
+│ OPERATION                 OPS       BYTES         RATE    AVG μs    p95 μs    p99 μs│
+├───────────────────────────────────────────────────────────────────────────────────┤
+│ Sequential Read     1,234,567  456.78 GiB  572.81 MiB/s       234       512       890│
+│ Random Read        12,345,678  789.01 GiB  988.76 MiB/s        12        38        67│
+│ Dir Listing         2,345,678   3.45 MiB          N/A          43       120       245│
+│ Write                 123,456   45.67 GiB   57.13 MiB/s     1,234     2,890     3,456│
+└───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Metrics key:**
-- **OPS/S** — operations per second at the last dashboard refresh interval
-- **THROUGHPUT** — MB/s read or written at the last refresh interval
-- **AVG/p50/p95/p99 μs** — operation latency in microseconds (cumulative over the full test)
-- **ERRORS** — count of IO errors encountered (the error type is OS-reported, e.g. access denied, network timeout)
+If any IO errors occurred, each distinct error type appears as an indented sub-row with a count and a representative message (file paths are replaced with `<test-directory>`):
+
+```
+│ Sequential Read       5,885   34.75 GiB  572.81 MiB/s     8,121     4,223     5,103│
+│   ↳  22,796x  FileSystemException: <test-directory>: The network path was not found │
+│   ↳      1x  IOException: The network path was not found                            │
+```
+
+**Live dashboard metrics:**
+- **OPS/S** — operations completed per second, measured over the last 500 ms refresh interval
+- **THROUGHPUT** — MB/s read or written over the last refresh interval; `N/A` for directory listings
+
+**Final summary metrics:**
+- **OPS** — total operations completed over the full test
+- **BYTES** — total bytes transferred (reads and writes); entry count for directory listings
+- **RATE** — average transfer rate over the test duration (bytes ÷ test duration); `N/A` for directory listings
+- **AVG μs** — mean operation latency in microseconds, across all operations of that type for the full test run
+- **p95 μs** — 95th-percentile latency: 95% of operations completed faster than this value. A p95 significantly higher than AVG indicates occasional slow outliers — often caused by SMB reconnects, GC pauses, or server load spikes
+- **p99 μs** — 99th-percentile latency: the worst 1% of operations. A large gap between p95 and p99 suggests rare but severe stalls — worth investigating if the workload is latency-sensitive
+- **ERRORS** — count of IO errors per operation type, broken down by exception class and message prefix
 
 ## Tips for Reproducing Server Bottlenecks
 
 - **Increase thread counts gradually** to find the threshold where errors first appear or latency spikes
 - **Use two separate share paths** for reads and writes to simulate a real e-discovery topology (evidence share → output share)
 - **Run multiple instances** of the tool simultaneously from different clients to simulate concurrent users
-- **Watch p95/p99 latency** — a large gap between p50 and p99 often indicates intermittent server resource exhaustion before errors start appearing
+- **Watch p95/p99 latency** — a large gap between AVG and p99 often indicates intermittent server resource exhaustion before errors start appearing
 - **Use `--canary`** to rule out AV interference early — silent quarantining can cause write errors and latency spikes that look like network or storage problems
 
 ## License
