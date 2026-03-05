@@ -98,6 +98,14 @@ public class StressTestCommand implements Callable<Integer> {
             }
         }
 
+        if (corpus != null && Files.exists(corpus.getDirectory())) {
+            System.err.println(ansi().fg(Color.RED)
+                    .a("Error: corpus directory already exists: " + corpus.getDirectory()
+                       + "\n  The corpus directory must not exist to prevent accidental"
+                       + " deletion of existing files during cleanup.").reset());
+            return 1;
+        }
+
         CorpusManager corpusManager = new CorpusManager();
         CanaryManager canaryManager = new CanaryManager();
         MetricsRegistry metrics     = new MetricsRegistry();
