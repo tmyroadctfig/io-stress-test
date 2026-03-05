@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Thread-safe metrics for a single operation type.
@@ -17,6 +19,11 @@ public class OperationMetrics {
 
     // Max trackable latency: 10 minutes in microseconds, 3 significant digits
     private static final long MAX_LATENCY_MICROS = TimeUnit.MINUTES.toMicros(10);
+
+    // Matches a file path at the start of an exception message: UNC (\\server\...), Unix (/path/...),
+    // or Windows drive (C:\path\...), with an optional trailing ": reason".
+    private static final Pattern FILE_PATH_PREFIX = Pattern.compile(
+            "^((?:\\\\\\\\|/)[^:]+|[A-Za-z]:[^:]+)(?::\\s(.+))?$", Pattern.DOTALL);
 
     private final LongAdder opCount    = new LongAdder();
     private final LongAdder byteCount  = new LongAdder();
@@ -43,8 +50,25 @@ public class OperationMetrics {
         errorCount.increment();
         String key = normalizeKey(e);
         errorDetails.computeIfAbsent(key, k -> new LongAdder()).increment();
-        errorSamples.putIfAbsent(key, e.getClass().getSimpleName()
-                + (e.getMessage() != null ? ": " + e.getMessage() : ""));
+        errorSamples.putIfAbsent(key, normalizeSample(e));
+    }
+
+    /**
+     * Builds a display-friendly sample message, replacing any leading file path with
+     * {@code <test-directory>} so the output is not flooded with unique paths.
+     */
+    private static String normalizeSample(Exception e) {
+        String cls = e.getClass().getSimpleName();
+        String msg = e.getMessage();
+        if (msg == null || msg.isEmpty()) return cls;
+        Matcher m = FILE_PATH_PREFIX.matcher(msg);
+        if (m.matches()) {
+            String reason = m.group(2);
+            return reason != null
+                    ? cls + ": <test-directory>: " + reason
+                    : cls + ": <test-directory>";
+        }
+        return cls + ": " + msg;
     }
 
     /** Groups by class name + the leading word/phrase up to the first non-letter, non-space char. */
