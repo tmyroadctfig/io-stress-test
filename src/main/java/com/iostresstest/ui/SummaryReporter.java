@@ -67,7 +67,7 @@ public class SummaryReporter {
 
             String bytesStr = ts.byteCount > 0 ? formatBytes(ts.byteCount) : "N/A";
             String rateStr;
-            if (type == OperationType.DIR_LIST && testSecs > 0 && ts.opCount > 0) {
+            if ((type == OperationType.DIR_LIST || type == OperationType.FILE_META) && testSecs > 0 && ts.opCount > 0) {
                 rateStr = String.format("%,.0f/s", ts.opCount / testSecs);
             } else if (type.hasThroughput() && testSecs > 0 && ts.byteCount > 0) {
                 rateStr = formatBytes((long) (ts.byteCount / testSecs)) + "/s";

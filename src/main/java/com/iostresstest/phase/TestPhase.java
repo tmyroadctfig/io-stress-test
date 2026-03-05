@@ -67,11 +67,13 @@ public class TestPhase {
         Set<Path> dirScanPaths  = new LinkedHashSet<>();
         for (WorkerSpec spec : workerSpecs) {
             if (spec.getType() == WorkerSpec.Type.READ
-                    || spec.getType() == WorkerSpec.Type.READ_LISTING) {
+                    || spec.getType() == WorkerSpec.Type.READ_LISTING
+                    || spec.getType() == WorkerSpec.Type.META_LISTING) {
                 fileScanPaths.add(spec.getDirectory());
             }
             if (spec.getType() == WorkerSpec.Type.LISTING
-                    || spec.getType() == WorkerSpec.Type.READ_LISTING) {
+                    || spec.getType() == WorkerSpec.Type.READ_LISTING
+                    || spec.getType() == WorkerSpec.Type.META_LISTING) {
                 dirScanPaths.add(spec.getDirectory());
             }
         }
