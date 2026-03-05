@@ -158,6 +158,11 @@ public class AnsiDashboard {
             case LISTING:
                 total = snap.get(OperationType.DIR_LIST).opCount;
                 break;
+            case READ_LISTING:
+                total = snap.get(OperationType.SEQ_READ).opCount
+                      + snap.get(OperationType.RAND_READ).opCount
+                      + snap.get(OperationType.DIR_LIST).opCount;
+                break;
             case WRITE:
                 total = snap.get(OperationType.FILE_WRITE).opCount;
                 break;

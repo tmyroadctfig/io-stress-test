@@ -84,4 +84,61 @@ class WorkerSpecTest {
         WorkerSpec spec = converter.convert("write:4:/tmp/output");
         assertEquals("write:4:" + Paths.get("/tmp/output"), spec.toString());
     }
+
+    // read+list worker
+
+    @Test
+    void convert_readListingWorker_defaultRatio() throws Exception {
+        WorkerSpec spec = converter.convert("read+list:8:/mnt/data");
+        assertEquals(WorkerSpec.Type.READ_LISTING, spec.getType());
+        assertEquals(8, spec.getThreads());
+        assertEquals(Paths.get("/mnt/data"), spec.getDirectory());
+        assertEquals(WorkerSpec.DEFAULT_READ_RATIO_PCT, spec.getReadRatioPct());
+    }
+
+    @Test
+    void convert_readListingWorker_customRatio() throws Exception {
+        WorkerSpec spec = converter.convert("read+list[75]:8:/mnt/data");
+        assertEquals(WorkerSpec.Type.READ_LISTING, spec.getType());
+        assertEquals(75, spec.getReadRatioPct());
+    }
+
+    @Test
+    void convert_readListingWorker_ratioZero_valid() throws Exception {
+        // ratio=0 means 100% listings — valid at the parser level
+        WorkerSpec spec = converter.convert("read+list[0]:4:/mnt/data");
+        assertEquals(0, spec.getReadRatioPct());
+    }
+
+    @Test
+    void convert_readListingWorker_ratio100_valid() throws Exception {
+        WorkerSpec spec = converter.convert("read+list[100]:4:/mnt/data");
+        assertEquals(100, spec.getReadRatioPct());
+    }
+
+    @Test
+    void convert_readListingWorker_ratioOutOfRange_throws() {
+        assertThrows(CommandLine.TypeConversionException.class,
+                () -> converter.convert("read+list[101]:4:/mnt/data"));
+    }
+
+    @Test
+    void convert_ratioSuffix_onNonReadListingType_throws() {
+        assertThrows(CommandLine.TypeConversionException.class,
+                () -> converter.convert("read[75]:4:/mnt/data"));
+        assertThrows(CommandLine.TypeConversionException.class,
+                () -> converter.convert("write[50]:4:/mnt/data"));
+    }
+
+    @Test
+    void toString_readListingWorker_defaultRatio_omitsSuffix() throws Exception {
+        WorkerSpec spec = converter.convert("read+list:4:/tmp/data");
+        assertEquals("read+list:4:" + Paths.get("/tmp/data"), spec.toString());
+    }
+
+    @Test
+    void toString_readListingWorker_customRatio_includesSuffix() throws Exception {
+        WorkerSpec spec = converter.convert("read+list[75]:4:/tmp/data");
+        assertEquals("read+list[75]:4:" + Paths.get("/tmp/data"), spec.toString());
+    }
 }
