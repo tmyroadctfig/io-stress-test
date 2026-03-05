@@ -15,6 +15,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -85,6 +86,16 @@ public class StressTestCommand implements Callable<Integer> {
             System.err.println(ansi().fg(Color.RED)
                     .a("Error: --file-size-min cannot exceed --file-size-max").reset());
             return 1;
+        }
+
+        for (WorkerSpec w : workers) {
+            if (w.getType() == WorkerSpec.Type.WRITE && Files.exists(w.getDirectory())) {
+                System.err.println(ansi().fg(Color.RED)
+                        .a("Error: write worker directory already exists: " + w.getDirectory()
+                           + "\n  Write workers must target a new directory to prevent accidental"
+                           + " deletion of existing files during cleanup.").reset());
+                return 1;
+            }
         }
 
         CorpusManager corpusManager = new CorpusManager();
