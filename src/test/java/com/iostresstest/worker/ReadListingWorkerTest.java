@@ -14,6 +14,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,7 +51,7 @@ class ReadListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 50));
+        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 50, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(500);
@@ -72,7 +73,7 @@ class ReadListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 100));
+        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 100, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -93,7 +94,7 @@ class ReadListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 0));
+        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 0, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -113,7 +114,7 @@ class ReadListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 50));
+        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 50, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         t.join(2000);
@@ -128,7 +129,7 @@ class ReadListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 50));
+        Thread t = new Thread(new ReadListingWorker(dataDir, metrics, running, 50, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(100);

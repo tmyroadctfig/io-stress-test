@@ -6,6 +6,7 @@ import com.iostresstest.metrics.MetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -20,7 +21,8 @@ public class WorkerGroup {
     private final ExecutorService executor;
 
     public WorkerGroup(WorkerSpec spec, MetricsRegistry metrics, CorpusManager corpusManager,
-                       long fileSizeMin, long fileSizeMax, AtomicBoolean running) {
+                       long fileSizeMin, long fileSizeMax, AtomicBoolean running,
+                       CountDownLatch readyLatch) {
         this.spec = spec;
         this.executor = Executors.newFixedThreadPool(spec.getThreads(),
                 r -> {
@@ -31,7 +33,7 @@ public class WorkerGroup {
                 });
 
         List<Runnable> workers = createWorkers(spec, metrics, corpusManager,
-                fileSizeMin, fileSizeMax, running);
+                fileSizeMin, fileSizeMax, running, readyLatch);
         workers.forEach(executor::submit);
     }
 
@@ -47,15 +49,16 @@ public class WorkerGroup {
     private static List<Runnable> createWorkers(WorkerSpec spec, MetricsRegistry metrics,
                                                  CorpusManager corpusManager,
                                                  long fileSizeMin, long fileSizeMax,
-                                                 AtomicBoolean running) {
+                                                 AtomicBoolean running,
+                                                 CountDownLatch readyLatch) {
         List<Runnable> workers = new ArrayList<>(spec.getThreads());
         for (int i = 0; i < spec.getThreads(); i++) {
             switch (spec.getType()) {
                 case READ:
-                    workers.add(new ReadWorker(spec.getDirectory(), metrics, running));
+                    workers.add(new ReadWorker(spec.getDirectory(), metrics, running, readyLatch));
                     break;
                 case LISTING:
-                    workers.add(new ListingWorker(spec.getDirectory(), metrics, running));
+                    workers.add(new ListingWorker(spec.getDirectory(), metrics, running, readyLatch));
                     break;
                 case WRITE:
                     workers.add(new WriteWorker(spec.getDirectory(), fileSizeMin, fileSizeMax,
@@ -63,7 +66,7 @@ public class WorkerGroup {
                     break;
                 case READ_LISTING:
                     workers.add(new ReadListingWorker(spec.getDirectory(), metrics,
-                            running, spec.getReadRatioPct()));
+                            running, spec.getReadRatioPct(), readyLatch));
                     break;
             }
         }

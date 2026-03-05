@@ -14,6 +14,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,7 +51,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running));
+        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(400);
@@ -70,7 +71,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running));
+        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -88,7 +89,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running));
+        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         t.join(2000);
@@ -104,7 +105,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running));
+        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(100);

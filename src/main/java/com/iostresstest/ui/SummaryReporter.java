@@ -66,9 +66,14 @@ public class SummaryReporter {
             if (ts.opCount == 0 && ts.errorCount == 0) continue;
 
             String bytesStr = ts.byteCount > 0 ? formatBytes(ts.byteCount) : "N/A";
-            String rateStr  = (type.hasThroughput() && testSecs > 0 && ts.byteCount > 0)
-                    ? formatBytes((long) (ts.byteCount / testSecs)) + "/s"
-                    : "N/A";
+            String rateStr;
+            if (type == OperationType.DIR_LIST && testSecs > 0 && ts.opCount > 0) {
+                rateStr = String.format("%,.0f listings/s", ts.opCount / testSecs);
+            } else if (type.hasThroughput() && testSecs > 0 && ts.byteCount > 0) {
+                rateStr = formatBytes((long) (ts.byteCount / testSecs)) + "/s";
+            } else {
+                rateStr = "N/A";
+            }
 
             String line = String.format(COL_FMT,
                     type.getDisplayName(),
