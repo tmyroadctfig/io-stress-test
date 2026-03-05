@@ -13,7 +13,8 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.CountDownLatch;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,12 +42,22 @@ class ListingWorkerTest {
         fs.close();
     }
 
+    private static List<Path> scanDirs(Path dir) {
+        try (var walk = java.nio.file.Files.walk(dir)) {
+            List<Path> dirs = walk.filter(java.nio.file.Files::isDirectory)
+                    .collect(java.util.stream.Collectors.toList());
+            return dirs.isEmpty() ? java.util.Collections.singletonList(dir) : dirs;
+        } catch (IOException e) {
+            return java.util.Collections.singletonList(dir);
+        }
+    }
+
     @Test
     void listingWorker_listsDirectoriesAndRecordsMetrics() throws InterruptedException {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(listDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ListingWorker(metrics, running, scanDirs(listDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -63,7 +74,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(listDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ListingWorker(metrics, running, scanDirs(listDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -82,7 +93,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(emptyDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ListingWorker(metrics, running, scanDirs(emptyDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(200);
@@ -99,7 +110,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(listDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ListingWorker(metrics, running, scanDirs(listDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(100);

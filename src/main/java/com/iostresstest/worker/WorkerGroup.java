@@ -6,7 +6,9 @@ import com.iostresstest.metrics.MetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +24,7 @@ public class WorkerGroup {
 
     public WorkerGroup(WorkerSpec spec, MetricsRegistry metrics, CorpusManager corpusManager,
                        long fileSizeMin, long fileSizeMax, AtomicBoolean running,
-                       CountDownLatch readyLatch) {
+                       Map<Path, List<Path>> fileCache, Map<Path, List<Path>> dirCache) {
         this.spec = spec;
         this.executor = Executors.newFixedThreadPool(spec.getThreads(),
                 r -> {
@@ -33,7 +35,7 @@ public class WorkerGroup {
                 });
 
         List<Runnable> workers = createWorkers(spec, metrics, corpusManager,
-                fileSizeMin, fileSizeMax, running, readyLatch);
+                fileSizeMin, fileSizeMax, running, fileCache, dirCache);
         workers.forEach(executor::submit);
     }
 
@@ -50,23 +52,28 @@ public class WorkerGroup {
                                                  CorpusManager corpusManager,
                                                  long fileSizeMin, long fileSizeMax,
                                                  AtomicBoolean running,
-                                                 CountDownLatch readyLatch) {
+                                                 Map<Path, List<Path>> fileCache,
+                                                 Map<Path, List<Path>> dirCache) {
+        Path dir = spec.getDirectory();
+        List<Path> files = fileCache.getOrDefault(dir, Collections.emptyList());
+        List<Path> dirs  = dirCache.getOrDefault(dir, Collections.singletonList(dir));
+
         List<Runnable> workers = new ArrayList<>(spec.getThreads());
         for (int i = 0; i < spec.getThreads(); i++) {
             switch (spec.getType()) {
                 case READ:
-                    workers.add(new ReadWorker(spec.getDirectory(), metrics, running, readyLatch));
+                    workers.add(new ReadWorker(metrics, running, files));
                     break;
                 case LISTING:
-                    workers.add(new ListingWorker(spec.getDirectory(), metrics, running, readyLatch));
+                    workers.add(new ListingWorker(metrics, running, dirs));
                     break;
                 case WRITE:
-                    workers.add(new WriteWorker(spec.getDirectory(), fileSizeMin, fileSizeMax,
+                    workers.add(new WriteWorker(dir, fileSizeMin, fileSizeMax,
                             metrics, corpusManager, running));
                     break;
                 case READ_LISTING:
-                    workers.add(new ReadListingWorker(spec.getDirectory(), metrics,
-                            running, spec.getReadRatioPct(), readyLatch));
+                    workers.add(new ReadListingWorker(metrics, running,
+                            spec.getReadRatioPct(), files, dirs));
                     break;
             }
         }
