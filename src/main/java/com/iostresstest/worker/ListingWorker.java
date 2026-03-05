@@ -6,12 +6,9 @@ import com.iostresstest.metrics.OperationType;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -20,31 +17,22 @@ import java.util.stream.Stream;
  */
 public class ListingWorker implements Runnable {
 
-    private final Path directory;
     private final MetricsRegistry metrics;
     private final AtomicBoolean running;
-    private final CountDownLatch readyLatch;
+    private final List<Path> dirs;
     private final Random rng = new Random();
 
-    public ListingWorker(Path directory, MetricsRegistry metrics, AtomicBoolean running,
-                         CountDownLatch readyLatch) {
-        this.directory  = directory;
-        this.metrics    = metrics;
-        this.running    = running;
-        this.readyLatch = readyLatch;
+    public ListingWorker(MetricsRegistry metrics, AtomicBoolean running, List<Path> dirs) {
+        this.metrics = metrics;
+        this.running = running;
+        this.dirs    = dirs;
     }
 
     @Override
     public void run() {
-        List<Path> dirs = scanDirectories(directory);
-        readyLatch.countDown();
-        if (dirs.isEmpty()) {
-            dirs = new ArrayList<>();
-            dirs.add(directory);
-        }
 
         while (running.get()) {
-            Path dir = dirs.get(rng.nextInt(dirs.size()));
+            Path dir = dirs.get(rng.nextInt(dirs.size()));  // list is immutable, safe to read
             listDirectory(dir);
         }
     }
@@ -60,11 +48,4 @@ public class ListingWorker implements Runnable {
         }
     }
 
-    private static List<Path> scanDirectories(Path root) {
-        try (Stream<Path> walk = Files.walk(root)) {
-            return walk.filter(Files::isDirectory).collect(Collectors.toList());
-        } catch (IOException e) {
-            return new ArrayList<>();
-        }
-    }
 }

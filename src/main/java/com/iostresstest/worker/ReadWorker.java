@@ -6,16 +6,11 @@ import com.iostresstest.metrics.OperationType;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Performs a mix of sequential full-file reads (50%) and random-seek chunk reads (50%).
@@ -26,24 +21,19 @@ public class ReadWorker implements Runnable {
     private static final int RAND_CHUNK_SIZE  = 64 * 1024;  // 64 KiB per seek
     private static final int RAND_SEEKS_PER_FILE = 8;       // seeks per random-read operation
 
-    private final Path directory;
     private final MetricsRegistry metrics;
     private final AtomicBoolean running;
-    private final CountDownLatch readyLatch;
+    private final List<Path> files;
     private final Random rng = new Random();
 
-    public ReadWorker(Path directory, MetricsRegistry metrics, AtomicBoolean running,
-                      CountDownLatch readyLatch) {
-        this.directory  = directory;
-        this.metrics    = metrics;
-        this.running    = running;
-        this.readyLatch = readyLatch;
+    public ReadWorker(MetricsRegistry metrics, AtomicBoolean running, List<Path> files) {
+        this.metrics = metrics;
+        this.running = running;
+        this.files   = files;
     }
 
     @Override
     public void run() {
-        List<Path> files = scanFiles(directory);
-        readyLatch.countDown();
         if (files.isEmpty()) {
             metrics.recordError(OperationType.SEQ_READ);
             return;
@@ -53,7 +43,7 @@ public class ReadWorker implements Runnable {
         ByteBuffer randBuf = ByteBuffer.allocate(RAND_CHUNK_SIZE);
 
         while (running.get()) {
-            Path file = files.get(rng.nextInt(files.size()));
+            Path file = files.get(rng.nextInt(files.size()));  // list is immutable, safe to read
             if (rng.nextBoolean()) {
                 sequentialRead(file, seqBuf);
             } else {
@@ -96,11 +86,4 @@ public class ReadWorker implements Runnable {
         }
     }
 
-    private static List<Path> scanFiles(Path directory) {
-        try (Stream<Path> walk = Files.walk(directory)) {
-            return walk.filter(Files::isRegularFile).collect(Collectors.toList());
-        } catch (IOException e) {
-            return new ArrayList<>();
-        }
-    }
 }

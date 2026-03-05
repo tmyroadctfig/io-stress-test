@@ -9,12 +9,9 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -28,31 +25,24 @@ public class ReadListingWorker implements Runnable {
     private static final int RAND_CHUNK_SIZE     = 64 * 1024;
     private static final int RAND_SEEKS_PER_FILE = 8;
 
-    private final Path directory;
     private final MetricsRegistry metrics;
     private final AtomicBoolean running;
-    private final CountDownLatch readyLatch;
     private final int readRatioPct;
+    private final List<Path> files;
+    private final List<Path> dirs;
     private final Random rng = new Random();
 
-    public ReadListingWorker(Path directory, MetricsRegistry metrics,
-                             AtomicBoolean running, int readRatioPct,
-                             CountDownLatch readyLatch) {
-        this.directory    = directory;
+    public ReadListingWorker(MetricsRegistry metrics, AtomicBoolean running,
+                             int readRatioPct, List<Path> files, List<Path> dirs) {
         this.metrics      = metrics;
         this.running      = running;
-        this.readyLatch   = readyLatch;
         this.readRatioPct = readRatioPct;
+        this.files        = files;
+        this.dirs         = dirs;
     }
 
     @Override
     public void run() {
-        List<Path> files = scanFiles(directory);
-        List<Path> dirs  = scanDirectories(directory);
-        readyLatch.countDown();
-        if (dirs.isEmpty()) dirs = new ArrayList<>();
-        if (dirs.isEmpty()) dirs.add(directory);
-
         if (files.isEmpty()) {
             metrics.recordError(OperationType.SEQ_READ);
             return;
@@ -63,7 +53,7 @@ public class ReadListingWorker implements Runnable {
 
         while (running.get()) {
             if (rng.nextInt(100) < readRatioPct) {
-                Path file = files.get(rng.nextInt(files.size()));
+                Path file = files.get(rng.nextInt(files.size()));  // lists are immutable, safe to read
                 if (rng.nextBoolean()) {
                     sequentialRead(file, seqBuf);
                 } else {
@@ -118,19 +108,4 @@ public class ReadListingWorker implements Runnable {
         }
     }
 
-    private static List<Path> scanFiles(Path directory) {
-        try (Stream<Path> walk = Files.walk(directory)) {
-            return walk.filter(Files::isRegularFile).collect(Collectors.toList());
-        } catch (IOException e) {
-            return new ArrayList<>();
-        }
-    }
-
-    private static List<Path> scanDirectories(Path root) {
-        try (Stream<Path> walk = Files.walk(root)) {
-            return walk.filter(Files::isDirectory).collect(Collectors.toList());
-        } catch (IOException e) {
-            return new ArrayList<>();
-        }
-    }
 }

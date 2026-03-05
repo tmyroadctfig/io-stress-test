@@ -13,8 +13,9 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +37,14 @@ class ReadWorkerTest {
         fs.close();
     }
 
+    private static List<Path> scanFiles(Path dir) {
+        try (var walk = java.nio.file.Files.walk(dir)) {
+            return walk.filter(java.nio.file.Files::isRegularFile).collect(java.util.stream.Collectors.toList());
+        } catch (IOException e) {
+            return new ArrayList<>();
+        }
+    }
+
     private void createFiles(int count, int sizeBytes) throws IOException {
         Random rng = new Random(42);
         byte[] data = new byte[sizeBytes];
@@ -51,7 +60,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ReadWorker(metrics, running, scanFiles(readDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(400);
@@ -71,7 +80,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ReadWorker(metrics, running, scanFiles(readDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -89,7 +98,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ReadWorker(metrics, running, scanFiles(readDir)));
         t.setDaemon(true);
         t.start();
         t.join(2000);
@@ -105,7 +114,7 @@ class ReadWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ReadWorker(readDir, metrics, running, new CountDownLatch(1)));
+        Thread t = new Thread(new ReadWorker(metrics, running, scanFiles(readDir)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(100);

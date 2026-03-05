@@ -6,15 +6,24 @@ import com.iostresstest.metrics.MetricsRegistry;
 import com.iostresstest.ui.AnsiDashboard;
 import com.iostresstest.worker.WorkerGroup;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Runs all worker groups for the configured duration while the ANSI dashboard refreshes live.
@@ -53,39 +62,56 @@ public class TestPhase {
         Thread shutdownHook = new Thread(() -> running.set(false));
         Runtime.getRuntime().addShutdownHook(shutdownHook);
 
-        // Count workers that perform an initial directory scan (READ, LISTING, READ_LISTING)
-        int scanWorkerCount = workerSpecs.stream()
-                .filter(s -> s.getType() != WorkerSpec.Type.WRITE)
-                .mapToInt(WorkerSpec::getThreads)
-                .sum();
-        CountDownLatch readyLatch = new CountDownLatch(scanWorkerCount);
-
-        // Start all worker groups
+        // Collect unique paths needing each scan type (preserving insertion order for progress display)
+        Set<Path> fileScanPaths = new LinkedHashSet<>();
+        Set<Path> dirScanPaths  = new LinkedHashSet<>();
         for (WorkerSpec spec : workerSpecs) {
-            groups.add(new WorkerGroup(spec, metrics, corpusManager,
-                    fileSizeMin, fileSizeMax, running, readyLatch));
+            if (spec.getType() == WorkerSpec.Type.READ
+                    || spec.getType() == WorkerSpec.Type.READ_LISTING) {
+                fileScanPaths.add(spec.getDirectory());
+            }
+            if (spec.getType() == WorkerSpec.Type.LISTING
+                    || spec.getType() == WorkerSpec.Type.READ_LISTING) {
+                dirScanPaths.add(spec.getDirectory());
+            }
         }
 
-        // Wait for all initial directory scans to finish before starting the timed run
-        if (scanWorkerCount > 0) {
+        // Scan each unique path once, sharing the result across all workers targeting it
+        Map<Path, List<Path>> fileCache = new HashMap<>();
+        Map<Path, List<Path>> dirCache  = new HashMap<>();
+        int totalScans    = fileScanPaths.size() + dirScanPaths.size();
+        int completedScans = 0;
+
+        if (totalScans > 0) {
             System.out.printf("Initial directory listing in progress ... [0/%d completed]",
-                    scanWorkerCount);
+                    totalScans);
             System.out.flush();
-            try {
-                while (!readyLatch.await(100, TimeUnit.MILLISECONDS)) {
-                    int completed = scanWorkerCount - (int) readyLatch.getCount();
-                    System.out.printf("\rInitial directory listing in progress ... [%d/%d completed]",
-                            completed, scanWorkerCount);
-                    System.out.flush();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+
+            for (Path p : fileScanPaths) {
+                fileCache.put(p, Collections.unmodifiableList(scanFiles(p)));
+                System.out.printf("\rInitial directory listing in progress ... [%d/%d completed]",
+                        ++completedScans, totalScans);
+                System.out.flush();
+            }
+            for (Path p : dirScanPaths) {
+                List<Path> dirs = scanDirectories(p);
+                dirCache.put(p, Collections.unmodifiableList(dirs.isEmpty()
+                        ? Collections.singletonList(p) : dirs));
+                System.out.printf("\rInitial directory listing in progress ... [%d/%d completed]",
+                        ++completedScans, totalScans);
+                System.out.flush();
             }
             System.out.printf("\rInitial directory listing complete.%s%n", " ".repeat(30));
         }
 
         // Timer starts only after all initial scans are done
         Instant start = Instant.now();
+
+        // Start all worker groups — workers receive pre-computed lists, no per-thread scanning
+        for (WorkerSpec spec : workerSpecs) {
+            groups.add(new WorkerGroup(spec, metrics, corpusManager,
+                    fileSizeMin, fileSizeMax, running, fileCache, dirCache));
+        }
 
         // Schedule stop after duration
         ScheduledExecutorService stopper = Executors.newSingleThreadScheduledExecutor();
@@ -134,5 +160,21 @@ public class TestPhase {
         } catch (IllegalStateException ignored) {}
 
         return PhaseResult.success("Test", Duration.between(start, Instant.now()));
+    }
+
+    private static List<Path> scanFiles(Path root) {
+        try (Stream<Path> walk = Files.walk(root)) {
+            return walk.filter(Files::isRegularFile).collect(Collectors.toList());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private static List<Path> scanDirectories(Path root) {
+        try (Stream<Path> walk = Files.walk(root)) {
+            return walk.filter(Files::isDirectory).collect(Collectors.toList());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
     }
 }
