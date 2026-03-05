@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -45,7 +46,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(listDir, metrics, running));
+        Thread t = new Thread(new ListingWorker(listDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -62,7 +63,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(listDir, metrics, running));
+        Thread t = new Thread(new ListingWorker(listDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(300);
@@ -81,7 +82,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(emptyDir, metrics, running));
+        Thread t = new Thread(new ListingWorker(emptyDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(200);
@@ -98,7 +99,7 @@ class ListingWorkerTest {
         MetricsRegistry metrics = new MetricsRegistry();
         AtomicBoolean running = new AtomicBoolean(true);
 
-        Thread t = new Thread(new ListingWorker(listDir, metrics, running));
+        Thread t = new Thread(new ListingWorker(listDir, metrics, running, new CountDownLatch(1)));
         t.setDaemon(true);
         t.start();
         Thread.sleep(100);

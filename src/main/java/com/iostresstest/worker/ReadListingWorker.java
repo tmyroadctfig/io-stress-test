@@ -12,6 +12,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,14 +31,17 @@ public class ReadListingWorker implements Runnable {
     private final Path directory;
     private final MetricsRegistry metrics;
     private final AtomicBoolean running;
+    private final CountDownLatch readyLatch;
     private final int readRatioPct;
     private final Random rng = new Random();
 
     public ReadListingWorker(Path directory, MetricsRegistry metrics,
-                             AtomicBoolean running, int readRatioPct) {
+                             AtomicBoolean running, int readRatioPct,
+                             CountDownLatch readyLatch) {
         this.directory    = directory;
         this.metrics      = metrics;
         this.running      = running;
+        this.readyLatch   = readyLatch;
         this.readRatioPct = readRatioPct;
     }
 
@@ -45,6 +49,7 @@ public class ReadListingWorker implements Runnable {
     public void run() {
         List<Path> files = scanFiles(directory);
         List<Path> dirs  = scanDirectories(directory);
+        readyLatch.countDown();
         if (dirs.isEmpty()) dirs = new ArrayList<>();
         if (dirs.isEmpty()) dirs.add(directory);
 

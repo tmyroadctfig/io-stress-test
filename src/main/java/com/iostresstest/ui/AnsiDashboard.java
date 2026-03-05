@@ -1,5 +1,6 @@
 package com.iostresstest.ui;
 
+import com.iostresstest.cli.WorkerSpec;
 import com.iostresstest.metrics.MetricsRegistry;
 import com.iostresstest.metrics.OperationType;
 import com.iostresstest.metrics.Snapshot;
@@ -101,7 +102,8 @@ public class AnsiDashboard {
                 "TYPE", "THDS", "DIRECTORY", "OPS")))));
 
         for (WorkerGroup g : groups) {
-            String typeName = g.getSpec().getType().name().toLowerCase();
+            var type = g.getSpec().getType();
+            String typeName = type == WorkerSpec.Type.READ_LISTING ? "read+list" : type.name().toLowerCase();
             String dirName  = abbreviate(g.getSpec().getDirectory().toString(), 35);
             long totalOps   = totalOpsForGroup(g, snap);
             sb.append(row(cell(String.format("  %-10s %-6d %-35s %,d",

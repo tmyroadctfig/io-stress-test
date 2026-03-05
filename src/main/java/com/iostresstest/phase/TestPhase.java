@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +46,6 @@ public class TestPhase {
     }
 
     public PhaseResult run() {
-        Instant start = Instant.now();
         AtomicBoolean running = new AtomicBoolean(true);
         List<WorkerGroup> groups = new ArrayList<>();
 
@@ -53,11 +53,39 @@ public class TestPhase {
         Thread shutdownHook = new Thread(() -> running.set(false));
         Runtime.getRuntime().addShutdownHook(shutdownHook);
 
+        // Count workers that perform an initial directory scan (READ, LISTING, READ_LISTING)
+        int scanWorkerCount = workerSpecs.stream()
+                .filter(s -> s.getType() != WorkerSpec.Type.WRITE)
+                .mapToInt(WorkerSpec::getThreads)
+                .sum();
+        CountDownLatch readyLatch = new CountDownLatch(scanWorkerCount);
+
         // Start all worker groups
         for (WorkerSpec spec : workerSpecs) {
             groups.add(new WorkerGroup(spec, metrics, corpusManager,
-                    fileSizeMin, fileSizeMax, running));
+                    fileSizeMin, fileSizeMax, running, readyLatch));
         }
+
+        // Wait for all initial directory scans to finish before starting the timed run
+        if (scanWorkerCount > 0) {
+            System.out.printf("Initial directory listing in progress ... [0/%d completed]",
+                    scanWorkerCount);
+            System.out.flush();
+            try {
+                while (!readyLatch.await(100, TimeUnit.MILLISECONDS)) {
+                    int completed = scanWorkerCount - (int) readyLatch.getCount();
+                    System.out.printf("\rInitial directory listing in progress ... [%d/%d completed]",
+                            completed, scanWorkerCount);
+                    System.out.flush();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            System.out.printf("\rInitial directory listing complete.%s%n", " ".repeat(30));
+        }
+
+        // Timer starts only after all initial scans are done
+        Instant start = Instant.now();
 
         // Schedule stop after duration
         ScheduledExecutorService stopper = Executors.newSingleThreadScheduledExecutor();

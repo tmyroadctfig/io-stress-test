@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -22,17 +23,21 @@ public class ListingWorker implements Runnable {
     private final Path directory;
     private final MetricsRegistry metrics;
     private final AtomicBoolean running;
+    private final CountDownLatch readyLatch;
     private final Random rng = new Random();
 
-    public ListingWorker(Path directory, MetricsRegistry metrics, AtomicBoolean running) {
-        this.directory = directory;
-        this.metrics   = metrics;
-        this.running   = running;
+    public ListingWorker(Path directory, MetricsRegistry metrics, AtomicBoolean running,
+                         CountDownLatch readyLatch) {
+        this.directory  = directory;
+        this.metrics    = metrics;
+        this.running    = running;
+        this.readyLatch = readyLatch;
     }
 
     @Override
     public void run() {
         List<Path> dirs = scanDirectories(directory);
+        readyLatch.countDown();
         if (dirs.isEmpty()) {
             dirs = new ArrayList<>();
             dirs.add(directory);

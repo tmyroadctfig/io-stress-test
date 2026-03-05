@@ -18,9 +18,9 @@ import static org.fusesource.jansi.Ansi.ansi;
  */
 public class SummaryReporter {
 
-    // Column format: 1+20+1+8+1+11+1+12+1+9+1+9+1+9 = 83 visible chars
+    // Column format: 1+20+1+8+1+11+1+12+1+9+1+9+1+9 = 85 visible chars
     private static final String COL_FMT = " %-20s %8s %11s %12s %9s %9s %9s";
-    private static final int WIDTH = 83;
+    private static final int WIDTH = 85;
     private static final String H = "─".repeat(WIDTH);
 
     public void print(MetricsRegistry metrics, List<PhaseResult> phases,
@@ -66,9 +66,14 @@ public class SummaryReporter {
             if (ts.opCount == 0 && ts.errorCount == 0) continue;
 
             String bytesStr = ts.byteCount > 0 ? formatBytes(ts.byteCount) : "N/A";
-            String rateStr  = (type.hasThroughput() && testSecs > 0 && ts.byteCount > 0)
-                    ? formatBytes((long) (ts.byteCount / testSecs)) + "/s"
-                    : "N/A";
+            String rateStr;
+            if (type == OperationType.DIR_LIST && testSecs > 0 && ts.opCount > 0) {
+                rateStr = String.format("%,.0f/s", ts.opCount / testSecs);
+            } else if (type.hasThroughput() && testSecs > 0 && ts.byteCount > 0) {
+                rateStr = formatBytes((long) (ts.byteCount / testSecs)) + "/s";
+            } else {
+                rateStr = "N/A";
+            }
 
             String line = String.format(COL_FMT,
                     type.getDisplayName(),
