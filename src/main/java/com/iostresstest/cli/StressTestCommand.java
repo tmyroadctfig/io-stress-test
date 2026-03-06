@@ -119,6 +119,11 @@ public class StressTestCommand implements Callable<Integer> {
         PhaseResult setupResult = setup.run();
         phases.add(setupResult);
 
+        if (!setupResult.isSucceeded()) {
+            printPhaseResult(setupResult);
+            return 1;
+        }
+
         if (canary) {
             Set<Path> canaryDirs = uniqueWorkerDirs();
             try {
