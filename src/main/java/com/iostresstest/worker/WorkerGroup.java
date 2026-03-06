@@ -75,6 +75,10 @@ public class WorkerGroup {
                     workers.add(new ReadListingWorker(metrics, running,
                             spec.getReadRatioPct(), files, dirs));
                     break;
+                case META_LISTING:
+                    workers.add(new MetaListingWorker(metrics, running,
+                            spec.getReadRatioPct(), spec.isFileOpen(), files, dirs));
+                    break;
             }
         }
         return workers;

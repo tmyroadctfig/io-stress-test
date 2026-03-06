@@ -67,11 +67,13 @@ public class TestPhase {
         Set<Path> dirScanPaths  = new LinkedHashSet<>();
         for (WorkerSpec spec : workerSpecs) {
             if (spec.getType() == WorkerSpec.Type.READ
-                    || spec.getType() == WorkerSpec.Type.READ_LISTING) {
+                    || spec.getType() == WorkerSpec.Type.READ_LISTING
+                    || spec.getType() == WorkerSpec.Type.META_LISTING) {
                 fileScanPaths.add(spec.getDirectory());
             }
             if (spec.getType() == WorkerSpec.Type.LISTING
-                    || spec.getType() == WorkerSpec.Type.READ_LISTING) {
+                    || spec.getType() == WorkerSpec.Type.READ_LISTING
+                    || spec.getType() == WorkerSpec.Type.META_LISTING) {
                 dirScanPaths.add(spec.getDirectory());
             }
         }
@@ -79,7 +81,10 @@ public class TestPhase {
         // Scan each unique path once, sharing the result across all workers targeting it
         Map<Path, List<Path>> fileCache = new HashMap<>();
         Map<Path, List<Path>> dirCache  = new HashMap<>();
-        int totalScans    = fileScanPaths.size() + dirScanPaths.size();
+        Set<Path> allScanPaths = new LinkedHashSet<>();
+        allScanPaths.addAll(fileScanPaths);
+        allScanPaths.addAll(dirScanPaths);
+        int totalScans    = allScanPaths.size();
         int completedScans = 0;
 
         if (totalScans > 0) {
@@ -87,16 +92,15 @@ public class TestPhase {
                     totalScans);
             System.out.flush();
 
-            for (Path p : fileScanPaths) {
-                fileCache.put(p, Collections.unmodifiableList(scanFiles(p)));
-                System.out.printf("\rInitial directory listing in progress ... [%d/%d completed]",
-                        ++completedScans, totalScans);
-                System.out.flush();
-            }
-            for (Path p : dirScanPaths) {
-                List<Path> dirs = scanDirectories(p);
-                dirCache.put(p, Collections.unmodifiableList(dirs.isEmpty()
-                        ? Collections.singletonList(p) : dirs));
+            for (Path p : allScanPaths) {
+                if (fileScanPaths.contains(p)) {
+                    fileCache.put(p, Collections.unmodifiableList(scanFiles(p)));
+                }
+                if (dirScanPaths.contains(p)) {
+                    List<Path> dirs = scanDirectories(p);
+                    dirCache.put(p, Collections.unmodifiableList(dirs.isEmpty()
+                            ? Collections.singletonList(p) : dirs));
+                }
                 System.out.printf("\rInitial directory listing in progress ... [%d/%d completed]",
                         ++completedScans, totalScans);
                 System.out.flush();
