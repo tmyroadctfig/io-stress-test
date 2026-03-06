@@ -86,7 +86,7 @@ public class AnsiDashboard {
 
             String throughput = type.hasThroughput()
                     ? String.format("%8.1f MB/s", mbPerSec)
-                    : String.format("%12s", "N/A");
+                    : String.format("%13s", "N/A");
 
             String errors = cur.errorCount > 0
                     ? ansi().fg(Color.RED).a(String.format("%7d", cur.errorCount)).reset().toString()
