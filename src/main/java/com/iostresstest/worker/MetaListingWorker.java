@@ -8,6 +8,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.util.List;
 import java.util.Random;
@@ -77,6 +78,7 @@ public class MetaListingWorker implements Runnable {
     private void fetchMetadata(Path file) {
         long start = System.nanoTime();
         try {
+            Files.readAttributes(file, BasicFileAttributes.class);
             if (IS_WINDOWS) {
                 AclFileAttributeView view = Files.getFileAttributeView(file, AclFileAttributeView.class);
                 view.getAcl();
