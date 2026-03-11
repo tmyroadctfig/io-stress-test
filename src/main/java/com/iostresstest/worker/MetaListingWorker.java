@@ -7,9 +7,7 @@ import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.AclFileAttributeView;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.*;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,7 +16,7 @@ import java.util.stream.Stream;
 /**
  * Stresses the non-transfer portions of the IO subsystem by performing a mix of:
  * <ul>
- *   <li><b>Metadata operations</b>: reads file attributes (POSIX on Linux/macOS, ACL on Windows)
+ *   <li><b>Metadata operations</b>: reads file attributes (Basic, DOS, Owner, POSIX, ACL)
  *       and, if enabled, opens and immediately closes the file via {@link Files#newByteChannel}.
  *   <li><b>Directory listings</b>: calls {@link Files#list} on a randomly chosen directory,
  *       identical to {@link ListingWorker}.
@@ -29,9 +27,6 @@ import java.util.stream.Stream;
  * File open/close can be disabled with {@code metadata+list[50,noopen]}.
  */
 public class MetaListingWorker implements Runnable {
-
-    private static final boolean IS_WINDOWS =
-            System.getProperty("os.name", "").toLowerCase().startsWith("win");
 
     private final MetricsRegistry metrics;
     private final AtomicBoolean running;
@@ -72,19 +67,50 @@ public class MetaListingWorker implements Runnable {
      * Fetches file attributes and optionally opens/closes the file, recording the combined
      * elapsed time as a single {@link OperationType#FILE_META} operation.
      *
-     * <p>On Windows: reads ACL entries and owner via {@link AclFileAttributeView}.
-     * On Linux/macOS: reads permissions, owner, and group via POSIX attributes.
+     * <p>Mirrors the operations in {@code FileAttributesHelper.appendFileAttributes}:
+     * <ul>
+     *   <li>BasicFileAttributeView - file times (modified, created, accessed)</li>
+     *   <li>DosFileAttributeView - DOS attributes (if available)</li>
+     *   <li>FileOwnerAttributeView - file owner</li>
+     *   <li>PosixFileAttributeView - POSIX permissions, group (if available)</li>
+     *   <li>AclFileAttributeView - ACL entries (if available)</li>
+     * </ul>
      */
     private void fetchMetadata(Path file) {
         long start = System.nanoTime();
         try {
-            Files.readAttributes(file, BasicFileAttributes.class);
-            if (IS_WINDOWS) {
-                AclFileAttributeView view = Files.getFileAttributeView(file, AclFileAttributeView.class);
-                view.getAcl();
-                view.getOwner();
-            } else {
-                Files.readAttributes(file, PosixFileAttributes.class);
+            // BasicFileAttributeView
+            var basicView = Files.getFileAttributeView(file, BasicFileAttributeView.class);
+            if (basicView != null) {
+                basicView.readAttributes();
+            }
+            
+            // DosFileAttributeView
+            var dosView = Files.getFileAttributeView(file, DosFileAttributeView.class);
+            if (dosView != null) {
+                try {
+                    dosView.readAttributes();
+                } catch (IOException ignored) {
+                    // May not be supported on all filesystems
+                }
+            }
+            
+            // FileOwnerAttributeView
+            var ownerView = Files.getFileAttributeView(file, FileOwnerAttributeView.class);
+            if (ownerView != null) {
+                ownerView.getOwner();
+            }
+            
+            // PosixFileAttributeView
+            var posixView = Files.getFileAttributeView(file, PosixFileAttributeView.class);
+            if (posixView != null) {
+                posixView.readAttributes();
+            }
+            
+            // AclFileAttributeView
+            AclFileAttributeView aclView = Files.getFileAttributeView(file, AclFileAttributeView.class);
+            if (aclView != null) {
+                aclView.getAcl();
             }
 
             if (fileOpen) {
