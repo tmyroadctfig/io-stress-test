@@ -86,7 +86,7 @@ public class AnsiDashboard {
 
             String throughput = type.hasThroughput()
                     ? String.format("%8.1f MB/s", mbPerSec)
-                    : String.format("%12s", "N/A");
+                    : String.format("%13s", "N/A");
 
             String errors = cur.errorCount > 0
                     ? ansi().fg(Color.RED).a(String.format("%7d", cur.errorCount)).reset().toString()
@@ -103,7 +103,9 @@ public class AnsiDashboard {
 
         for (WorkerGroup g : groups) {
             var type = g.getSpec().getType();
-            String typeName = type == WorkerSpec.Type.READ_LISTING ? "read+list" : type.name().toLowerCase();
+            String typeName = type == WorkerSpec.Type.READ_LISTING  ? "read+list"
+                           : type == WorkerSpec.Type.META_LISTING ? "metadata+list"
+                           : type.name().toLowerCase();
             String dirName  = abbreviate(g.getSpec().getDirectory().toString(), 35);
             long totalOps   = totalOpsForGroup(g, snap);
             sb.append(row(cell(String.format("  %-10s %-6d %-35s %,d",
@@ -167,6 +169,10 @@ public class AnsiDashboard {
                 break;
             case WRITE:
                 total = snap.get(OperationType.FILE_WRITE).opCount;
+                break;
+            case META_LISTING:
+                total = snap.get(OperationType.FILE_META).opCount
+                      + snap.get(OperationType.DIR_LIST).opCount;
                 break;
         }
         return total;

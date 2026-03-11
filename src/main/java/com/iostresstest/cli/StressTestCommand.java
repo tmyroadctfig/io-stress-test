@@ -24,6 +24,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.fusesource.jansi.Ansi.ansi;
 
@@ -112,56 +114,79 @@ public class StressTestCommand implements Callable<Integer> {
         AnsiDashboard dashboard     = new AnsiDashboard();
         List<PhaseResult> phases    = new ArrayList<>();
 
-        // ── Setup ────────────────────────────────────────────────────────────
-        printPhaseHeader("SETUP");
-        SetupPhase setup = new SetupPhase(corpus, fileSizeMin, fileSizeMax, corpusManager,
-                (created, total) -> printProgress("Creating corpus", created, total));
-        PhaseResult setupResult = setup.run();
-        phases.add(setupResult);
+        // Block JVM shutdown (Ctrl+C) until the main thread finishes printing the summary.
+        // Without this, the JVM halts as soon as all shutdown hooks return, which happens
+        // before the main thread reaches the summary/cleanup code.
+        CountDownLatch shutdownComplete = new CountDownLatch(1);
+        Thread blockingShutdownHook = new Thread(() -> {
+            try { shutdownComplete.await(60, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        });
+        Runtime.getRuntime().addShutdownHook(blockingShutdownHook);
 
-        if (canary) {
-            Set<Path> canaryDirs = uniqueWorkerDirs();
-            try {
-                canaryManager.drop(new ArrayList<>(canaryDirs));
-                System.out.println(ansi().fg(Color.CYAN)
-                        .a("  Canary dropped in " + canaryDirs.size() + " director"
-                           + (canaryDirs.size() == 1 ? "y" : "ies")).reset());
-            } catch (IOException e) {
-                System.out.println(ansi().fg(Color.RED)
-                        .a("  Warning: failed to drop canary — " + e.getMessage()).reset());
+        try {
+            // ── Setup ────────────────────────────────────────────────────────────
+            printPhaseHeader("SETUP");
+            SetupPhase setup = new SetupPhase(corpus, fileSizeMin, fileSizeMax, corpusManager,
+                    (created, total) -> printProgress("Creating corpus", created, total));
+            PhaseResult setupResult = setup.run();
+            phases.add(setupResult);
+
+            if (!setupResult.isSucceeded()) {
+                printPhaseResult(setupResult);
+                return 1;
             }
-            System.out.println();
-        } else {
-            printPhaseResult(setupResult);
+
+            if (canary) {
+                Set<Path> canaryDirs = uniqueWorkerDirs();
+                try {
+                    canaryManager.drop(new ArrayList<>(canaryDirs));
+                    System.out.println(ansi().fg(Color.CYAN)
+                            .a("  Canary dropped in " + canaryDirs.size() + " director"
+                               + (canaryDirs.size() == 1 ? "y" : "ies")).reset());
+                } catch (IOException e) {
+                    System.out.println(ansi().fg(Color.RED)
+                            .a("  Warning: failed to drop canary — " + e.getMessage()).reset());
+                }
+                System.out.println();
+            } else {
+                printPhaseResult(setupResult);
+            }
+
+            // ── Test ─────────────────────────────────────────────────────────────
+            printPhaseHeader("TEST");
+            TestPhase test = new TestPhase(duration, workers, fileSizeMin, fileSizeMax,
+                    metrics, corpusManager, dashboard);
+            PhaseResult testResult = test.run();
+            phases.add(testResult);
+
+            // ── Canary verification ───────────────────────────────────────────────
+            List<CanaryResult> canaryResults = Collections.emptyList();
+            if (canary && canaryManager.hasCanaries()) {
+                canaryResults = canaryManager.verify();
+            }
+
+            // ── Cleanup ──────────────────────────────────────────────────────────
+            printPhaseHeader("CLEANUP");
+            canaryManager.cleanup();
+            CleanupPhase cleanup = new CleanupPhase(corpusManager,
+                    (deleted, total) -> printProgress("Deleting files", (int) deleted, (int) total));
+            PhaseResult cleanupResult = cleanup.run();
+            phases.add(cleanupResult);
+            printPhaseResult(cleanupResult);
+
+            // ── Summary ──────────────────────────────────────────────────────────
+            new SummaryReporter().print(metrics, phases, canaryResults);
+
+            boolean canaryFailed = canaryResults.stream().anyMatch(r -> !r.isOk());
+            return canaryFailed ? 1 : 0;
+        } finally {
+            // Release the blocking shutdown hook so the JVM can exit cleanly.
+            // On Ctrl+C this runs after summary is printed, allowing the hook to return.
+            shutdownComplete.countDown();
+            try {
+                Runtime.getRuntime().removeShutdownHook(blockingShutdownHook);
+            } catch (IllegalStateException ignored) {} // already in shutdown
         }
-
-        // ── Test ─────────────────────────────────────────────────────────────
-        printPhaseHeader("TEST");
-        TestPhase test = new TestPhase(duration, workers, fileSizeMin, fileSizeMax,
-                metrics, corpusManager, dashboard);
-        PhaseResult testResult = test.run();
-        phases.add(testResult);
-
-        // ── Canary verification ───────────────────────────────────────────────
-        List<CanaryResult> canaryResults = Collections.emptyList();
-        if (canary && canaryManager.hasCanaries()) {
-            canaryResults = canaryManager.verify();
-        }
-
-        // ── Cleanup ──────────────────────────────────────────────────────────
-        printPhaseHeader("CLEANUP");
-        canaryManager.cleanup();
-        CleanupPhase cleanup = new CleanupPhase(corpusManager,
-                (deleted, total) -> printProgress("Deleting files", (int) deleted, (int) total));
-        PhaseResult cleanupResult = cleanup.run();
-        phases.add(cleanupResult);
-        printPhaseResult(cleanupResult);
-
-        // ── Summary ──────────────────────────────────────────────────────────
-        new SummaryReporter().print(metrics, phases, canaryResults);
-
-        boolean canaryFailed = canaryResults.stream().anyMatch(r -> !r.isOk());
-        return canaryFailed ? 1 : 0;
     }
 
     private Set<Path> uniqueWorkerDirs() {
